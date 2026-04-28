@@ -57,11 +57,13 @@ export class NaukriProfilePage {
   async openHome(): Promise<void> {
     await this.page.goto("https://www.naukri.com", { waitUntil: "domcontentloaded" });
     await this.page.waitForLoadState("networkidle");
+    await this.dismissBlockingUi();
   }
 
   async openLoginPanel(): Promise<void> {
     let openedFromHeader = false;
     try {
+      await this.dismissBlockingUi();
       await this.loginTrigger().click({ timeout: 5000 });
       await this.page.waitForLoadState("domcontentloaded");
       openedFromHeader = true;
@@ -70,10 +72,45 @@ export class NaukriProfilePage {
     }
 
     if (!openedFromHeader) {
-      // CI/headless often hides or overlays the top-right login CTA.
+      // Try iframe login triggers first, then use direct login page as fallback.
+      openedFromHeader = await this.tryOpenLoginFromFrames();
+    }
+
+    if (!openedFromHeader) {
       await this.page.goto("https://www.naukri.com/nlogin/login", { waitUntil: "domcontentloaded" });
     }
     await this.ensureLoginFormVisible();
+  }
+
+  private async dismissBlockingUi(): Promise<void> {
+    await this.page.keyboard.press("Escape").catch(() => {});
+    await this.page
+      .locator("button[aria-label*='close' i], button[title*='close' i], .crossIcon, .close, .close-btn")
+      .first()
+      .click({ timeout: 2000 })
+      .catch(() => {});
+    await this.page
+      .locator("iframe[title*='ad' i], iframe[id*='google_ads' i], iframe[src*='doubleclick' i]")
+      .evaluateAll((frames) => frames.forEach((f) => ((f as HTMLElement).style.display = "none")))
+      .catch(() => {});
+  }
+
+  private async tryOpenLoginFromFrames(): Promise<boolean> {
+    for (const frame of this.page.frames()) {
+      try {
+        await frame.getByRole("link", { name: /login/i }).first().click({ timeout: 2000 });
+        return true;
+      } catch {
+        // try next frame
+      }
+      try {
+        await frame.getByRole("button", { name: /login/i }).first().click({ timeout: 2000 });
+        return true;
+      } catch {
+        // try next frame
+      }
+    }
+    return false;
   }
 
   private async ensureLoginFormVisible(): Promise<void> {
