@@ -1,15 +1,21 @@
 import path from "node:path";
-import { Locator, Page } from "playwright";
+import { Frame, Locator, Page } from "playwright";
 
 export class NaukriProfilePage {
+  private loginFrame: Frame | null = null;
+
   constructor(private readonly page: Page) {}
+
+  private loginContext(): Page | Frame {
+    return this.loginFrame ?? this.page;
+  }
 
   private loginTrigger(): Locator {
     return this.page.getByRole("link", { name: /login/i }).first();
   }
 
   private usernameInput(): Locator {
-    return this.page
+    return this.loginContext()
       .locator(
         "input#usernameField, input[name='email'], input[type='email'], input[placeholder*='Email' i], input[placeholder*='Username' i], input[type='text'][name*='email' i], input[id*='username' i]"
       )
@@ -17,13 +23,13 @@ export class NaukriProfilePage {
   }
 
   private passwordInput(): Locator {
-    return this.page
+    return this.loginContext()
       .locator("input[type='password'], input[placeholder*='Password'], input[name*='password' i], input[id*='password' i]")
       .first();
   }
 
   private loginSubmitButton(): Locator {
-    return this.page
+    return this.loginContext()
       .locator("button:has-text('Login'), button[type='submit']:has-text('Login'), .loginButton, [data-ga-track*='login']")
       .first();
   }
@@ -113,8 +119,26 @@ export class NaukriProfilePage {
     return false;
   }
 
+  private async findLoginContextByFields(timeoutMs = 5000): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    const selector =
+      "input#usernameField, input[name='email'], input[type='email'], input[placeholder*='Email' i], input[placeholder*='Username' i], input[type='text'][name*='email' i], input[id*='username' i]";
+
+    while (Date.now() < deadline) {
+      for (const frame of this.page.frames()) {
+        const visible = await frame.locator(selector).first().isVisible().catch(() => false);
+        if (visible) {
+          this.loginFrame = frame;
+          return true;
+        }
+      }
+      await this.page.waitForTimeout(400);
+    }
+    return false;
+  }
+
   private async ensureLoginFormVisible(): Promise<void> {
-    const usernameReady = await this.usernameInput().isVisible().catch(() => false);
+    const usernameReady = await this.findLoginContextByFields();
     if (usernameReady) {
       return;
     }
@@ -124,7 +148,10 @@ export class NaukriProfilePage {
     await this.page.getByRole("link", { name: /login/i }).first().click({ timeout: 3000 }).catch(() => {});
     await this.page.locator("[data-ga-track*='login'], .loginButton").first().click({ timeout: 3000 }).catch(() => {});
 
-    await this.usernameInput().waitFor({ state: "visible", timeout: 30000 });
+    const resolved = await this.findLoginContextByFields(30000);
+    if (!resolved) {
+      throw new Error("Login form fields were not visible in page or any iframe.");
+    }
   }
 
   async login(username: string, password: string): Promise<void> {
