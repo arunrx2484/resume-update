@@ -39,13 +39,17 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Set resume path
+      - name: Recreate resume from GitHub Secret
         shell: bash
         run: |
+          mkdir -p artifacts
+          printf "%s" "${{ secrets.RESUME_B64 }}" | base64 --decode > artifacts/resume.pdf
+
           if [ ! -s artifacts/resume.pdf ]; then
-            echo "Resume file not found at artifacts/resume.pdf"
+            echo "Resume file was not created correctly"
             exit 1
           fi
+
           echo "RESUME_PATH=$(pwd)/artifacts/resume.pdf" >> "$GITHUB_ENV"
 
       - name: Run Cucumber scenario
