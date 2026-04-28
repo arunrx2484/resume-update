@@ -11,7 +11,7 @@ export class NaukriProfilePage {
   private usernameInput(): Locator {
     return this.page
       .locator(
-        "input[placeholder*='Email ID'], input[placeholder*='Username'], input[type='text'][name*='email' i], input[id*='username' i]"
+        "input#usernameField, input[name='email'], input[type='email'], input[placeholder*='Email' i], input[placeholder*='Username' i], input[type='text'][name*='email' i], input[id*='username' i]"
       )
       .first();
   }
@@ -73,6 +73,20 @@ export class NaukriProfilePage {
       // CI/headless often hides or overlays the top-right login CTA.
       await this.page.goto("https://www.naukri.com/nlogin/login", { waitUntil: "domcontentloaded" });
     }
+    await this.ensureLoginFormVisible();
+  }
+
+  private async ensureLoginFormVisible(): Promise<void> {
+    const usernameReady = await this.usernameInput().isVisible().catch(() => false);
+    if (usernameReady) {
+      return;
+    }
+
+    // Some Naukri variants require an additional login CTA click even on /nlogin/login.
+    await this.page.getByRole("button", { name: /login/i }).first().click({ timeout: 3000 }).catch(() => {});
+    await this.page.getByRole("link", { name: /login/i }).first().click({ timeout: 3000 }).catch(() => {});
+    await this.page.locator("[data-ga-track*='login'], .loginButton").first().click({ timeout: 3000 }).catch(() => {});
+
     await this.usernameInput().waitFor({ state: "visible", timeout: 30000 });
   }
 
