@@ -60,12 +60,17 @@ export class NaukriProfilePage {
   }
 
   async openLoginPanel(): Promise<void> {
-    const loginVisible = await this.loginTrigger().isVisible().catch(() => false);
-    if (loginVisible) {
-      await this.loginTrigger().click();
+    let openedFromHeader = false;
+    try {
+      await this.loginTrigger().click({ timeout: 5000 });
       await this.page.waitForLoadState("domcontentloaded");
-    } else {
-      // CI/headless sometimes renders a different header without visible login CTA.
+      openedFromHeader = true;
+    } catch {
+      // Ignore and fall back to direct login URL.
+    }
+
+    if (!openedFromHeader) {
+      // CI/headless often hides or overlays the top-right login CTA.
       await this.page.goto("https://www.naukri.com/nlogin/login", { waitUntil: "domcontentloaded" });
     }
     await this.usernameInput().waitFor({ state: "visible", timeout: 30000 });
