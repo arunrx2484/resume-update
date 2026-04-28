@@ -60,8 +60,14 @@ export class NaukriProfilePage {
   }
 
   async openLoginPanel(): Promise<void> {
-    await this.loginTrigger().click();
-    await this.page.waitForLoadState("domcontentloaded");
+    const loginVisible = await this.loginTrigger().isVisible().catch(() => false);
+    if (loginVisible) {
+      await this.loginTrigger().click();
+      await this.page.waitForLoadState("domcontentloaded");
+    } else {
+      // CI/headless sometimes renders a different header without visible login CTA.
+      await this.page.goto("https://www.naukri.com/nlogin/login", { waitUntil: "domcontentloaded" });
+    }
     await this.usernameInput().waitFor({ state: "visible", timeout: 30000 });
   }
 
