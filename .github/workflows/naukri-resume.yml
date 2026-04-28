@@ -39,11 +39,17 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Recreate resume from GitHub Secret
+      - name: Recreate resume from split GitHub secrets
         shell: bash
         run: |
           mkdir -p artifacts
-          printf "%s" "${{ secrets.RESUME_B64 }}" | base64 --decode > artifacts/resume.pdf
+
+          if [ -z "${{ secrets.RESUME_B64_PART1 }}" ] || [ -z "${{ secrets.RESUME_B64_PART2 }}" ]; then
+            echo "Missing RESUME_B64_PART1 or RESUME_B64_PART2 secret"
+            exit 1
+          fi
+
+          printf "%s%s" "${{ secrets.RESUME_B64_PART1 }}" "${{ secrets.RESUME_B64_PART2 }}" | base64 --decode > artifacts/resume.pdf
 
           if [ ! -s artifacts/resume.pdf ]; then
             echo "Resume file was not created correctly"
