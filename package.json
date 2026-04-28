@@ -1,0 +1,30 @@
+{
+  "name": "salesforce-cpq-bdd-typescript",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-ready Cucumber BDD framework in TypeScript",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "cucumber-js",
+    "test:smoke": "cucumber-js --tags \"@smoke\"",
+    "test:regression": "cucumber-js --tags \"@regression\"",
+    "test:env": "cucumber-js",
+    "report:generate": "node scripts/generate-report.js",
+    "report:open": "open reports/cucumber-html-report/index.html",
+    "posttest": "npm run report:generate"
+  },
+  "dependencies": {
+    "@cucumber/cucumber": "^10.9.0",
+    "@cucumber/html-formatter": "^20.4.0",
+    "dotenv": "^16.4.5",
+    "multiple-cucumber-html-reporter": "^3.9.1",
+    "playwright": "^1.52.0",
+    "winston": "^3.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "node": "^20.20.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}

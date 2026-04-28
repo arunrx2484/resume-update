@@ -1,0 +1,9 @@
+target/
+*.log
+reports/screenshots/*.png
+reports/logs/*.log
+.DS_Store
+node_modules/
+dist/
+config/env/naukri-secrets.env
+.npm-cache/

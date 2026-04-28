@@ -1,0 +1,64 @@
+name: Naukri Resume Update
+
+on:
+  schedule:
+    - cron: "30 18 * * *" # 12:00 AM IST
+    - cron: "30 21 * * *" # 03:00 AM IST
+    - cron: "30 0 * * *"  # 06:00 AM IST
+    - cron: "30 3 * * *"  # 09:00 AM IST
+    - cron: "30 6 * * *"  # 12:00 PM IST
+    - cron: "30 9 * * *"  # 03:00 PM IST
+    - cron: "30 12 * * *" # 06:00 PM IST
+    - cron: "30 15 * * *" # 09:00 PM IST
+  workflow_dispatch:
+
+jobs:
+  run-naukri-bdd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ENV: qa
+      BROWSER: chromium
+      HEADLESS: true
+      NAUKRI_USER: ${{ secrets.NAUKRI_USER }}
+      NAUKRI_PASS: ${{ secrets.NAUKRI_PASS }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Recreate resume from secret
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          printf "%s" "${{ secrets.RESUME_B64 }}" | base64 --decode > artifacts/resume.pdf
+          echo "RESUME_PATH=$(pwd)/artifacts/resume.pdf" >> "$GITHUB_ENV"
+
+      - name: Run Cucumber scenario
+        run: npx cucumber-js --tags "@naukri and @resume"
+
+      - name: Generate HTML report
+        if: always()
+        run: npm run report:generate
+
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: naukri-bdd-report
+          path: |
+            reports/cucumber-html-report/**
+            reports/screenshots/**
+            reports/logs/**
