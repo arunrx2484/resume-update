@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# Scheduled Naukri run. macOS cron often cannot write under ~/Documents (TCC); primary logs/artifacts
-# go to ~/Library/Logs/naukri-resume-scheduler/ so the job can complete and leave evidence.
+# Scheduled Naukri run.
+#
+# macOS: cron may refuse to *execute* scripts under ~/Documents ("Operation not permitted").
+# Install a copy outside Documents for crontab — see scripts/install-mac-cron-runner.sh
+#
+# macOS cron often cannot write under ~/Documents (TCC); primary logs/artifacts go to
+# ~/Library/Logs/naukri-resume-scheduler/ so the job can complete and leave evidence.
 
 export HOME="${HOME:-/Users/arunkumarbalkutty}"
 PROJECT_DIR="/Users/arunkumarbalkutty/Documents/salesforce-cpq-bdd/resume update"
