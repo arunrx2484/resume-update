@@ -37,6 +37,22 @@ export class NaukriProfilePage {
     ].join(", ");
   }
 
+
+  private async throwIfAccessDeniedByWaf(): Promise<void> {
+    const text = (await this.page.evaluate(() => document.body?.innerText ?? "")).toLowerCase();
+    const blocked =
+      text.includes("access denied") ||
+      text.includes("you don't have permission to access") ||
+      text.includes("errors.edgesuite.net") ||
+      text.includes("akamai") ||
+      text.includes("reference #");
+    if (blocked) {
+      throw new Error(
+        `Naukri denied access from this runner/network (likely WAF/IP block). url=${this.safePageUrl()}`
+      );
+    }
+  }
+
   private loginContext(): Page | Frame {
     return this.loginFrame ?? this.page;
   }
@@ -90,6 +106,7 @@ export class NaukriProfilePage {
   async openHome(): Promise<void> {
     const timeout = this.isCiPreferDirectLogin() ? 60_000 : 120_000;
     await this.page.goto("https://www.naukri.com", { waitUntil: "domcontentloaded", timeout });
+    await this.throwIfAccessDeniedByWaf();
     // networkidle often never settles on CI (analytics); only wait for it locally.
     if (!this.isCiPreferDirectLogin()) {
       await this.page.waitForLoadState("networkidle").catch(() => {});
@@ -107,6 +124,8 @@ export class NaukriProfilePage {
       for (const url of this.directLoginUrlCandidates()) {
         try {
           await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+          await this.throwIfAccessDeniedByWaf();
+          await this.throwIfAccessDeniedByWaf();
           await this.page.waitForTimeout(2000);
           await this.dismissBlockingUi();
           await this.maybeAcceptConsent();
@@ -144,6 +163,7 @@ export class NaukriProfilePage {
         waitUntil: "domcontentloaded",
         timeout: 60_000,
       });
+      await this.throwIfAccessDeniedByWaf();
       await this.dismissBlockingUi();
       await this.maybeAcceptConsent();
       await this.waitForAntiBotOrChallengeToSettle();
@@ -273,6 +293,8 @@ export class NaukriProfilePage {
       for (const url of this.directLoginUrlCandidates()) {
         try {
           await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+          await this.throwIfAccessDeniedByWaf();
+          await this.throwIfAccessDeniedByWaf();
           await this.dismissBlockingUi();
           await this.maybeAcceptConsent();
           await this.waitForAntiBotOrChallengeToSettle();
