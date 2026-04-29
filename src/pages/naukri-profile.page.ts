@@ -105,7 +105,17 @@ export class NaukriProfilePage {
   }
 
   private resumeFileInput(): Locator {
-    return this.page.locator("input[type='file']").first();
+    return this.page
+      .locator(
+        [
+          "input[type='file']",
+          "input[name*='resume' i]",
+          "input[id*='resume' i]",
+          "input[name*='upload' i]",
+          "input[id*='upload' i]",
+        ].join(", ")
+      )
+      .first();
   }
 
   private resumeHeadline(): Locator {
@@ -457,13 +467,47 @@ export class NaukriProfilePage {
       // Some layouts render a visible file input directly; caller can still upload.
       await this.resumeFileInput().waitFor({ state: "attached", timeout: 5000 }).catch(() => {});
     }
+    await this.page.getByText(/upload resume|update resume|attach resume|upload cv/i).first().click({ timeout: 5000 }).catch(() => {});
+    await this.page.waitForTimeout(1200);
   }
 
   async uploadResume(resumePath: string): Promise<void> {
     const absolutePath = path.resolve(resumePath);
-    const input = this.resumeFileInput();
-    await input.waitFor({ state: "attached", timeout: 15000 });
-    await input.setInputFiles(absolutePath);
+    const trySet = async (target: Locator): Promise<boolean> => {
+      const ready = await target.waitFor({ state: "attached", timeout: 6000 }).then(() => true).catch(() => false);
+      if (!ready) return false;
+      return target.setInputFiles(absolutePath).then(() => true).catch(() => false);
+    };
+
+    if (await trySet(this.resumeFileInput())) {
+      return;
+    }
+
+    for (const frame of this.page.frames()) {
+      const frameInput = frame
+        .locator(
+          [
+            "input[type='file']",
+            "input[name*='resume' i]",
+            "input[id*='resume' i]",
+            "input[name*='upload' i]",
+            "input[id*='upload' i]",
+          ].join(", ")
+        )
+        .first();
+      const done = await frameInput
+        .waitFor({ state: "attached", timeout: 3000 })
+        .then(async () => {
+          await frameInput.setInputFiles(absolutePath);
+          return true;
+        })
+        .catch(() => false);
+      if (done) {
+        return;
+      }
+    }
+
+    throw new Error("Resume file input was not found on profile page or child iframes.");
   }
 
   async waitForResumeDateChange(previousDateText: string): Promise<string> {
