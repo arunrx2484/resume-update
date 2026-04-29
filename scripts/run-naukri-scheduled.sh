@@ -2,11 +2,15 @@
 # Log before strict mode: cron can fail `cd` or env setup and exit with no other trace.
 PROJECT_DIR="/Users/arunkumarbalkutty/Documents/salesforce-cpq-bdd/resume update"
 HEARTBEAT_LOG="$PROJECT_DIR/reports/logs/cron-heartbeat.log"
+TMP_HEARTBEAT_LOG="/tmp/naukri-cron-heartbeat.log"
+log_heartbeat() {
+  local msg="$1"
+  echo "$msg" >> "$TMP_HEARTBEAT_LOG" 2>/dev/null || true
+  echo "$msg" >> "$HEARTBEAT_LOG" 2>/dev/null || true
+}
 mkdir -p "$PROJECT_DIR/reports/logs" || true
-{
-  echo "[$(date)] cron invoked user=$(whoami) uid=$(id -u) shell=$0"
-  echo "[$(date)] pre-cd PWD=$PWD"
-} >> "$HEARTBEAT_LOG" 2>&1
+log_heartbeat "[$(date)] cron invoked user=$(whoami) uid=$(id -u) shell=$0"
+log_heartbeat "[$(date)] pre-cd PWD=$PWD"
 
 set -euo pipefail
 
@@ -17,10 +21,10 @@ RUN_LOG="$LOG_DIR/scheduler.log"
 
 mkdir -p "$LOG_DIR"
 cd "$PROJECT_DIR" || {
-  echo "[$(date)] ERROR: cd to PROJECT_DIR failed: $PROJECT_DIR" >> "$HEARTBEAT_LOG"
+  log_heartbeat "[$(date)] ERROR: cd to PROJECT_DIR failed: $PROJECT_DIR"
   exit 1
 }
-echo "[$(date)] post-cd OK PWD=$(pwd)" >> "$HEARTBEAT_LOG"
+log_heartbeat "[$(date)] post-cd OK PWD=$(pwd)"
 
 # Cron has a minimal environment; set stable defaults explicitly.
 export HOME="/Users/arunkumarbalkutty"
