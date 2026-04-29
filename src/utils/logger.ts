@@ -1,8 +1,10 @@
+import fs from "node:fs";
 import path from "node:path";
 import { createLogger, format, transports } from "winston";
-import { FRAMEWORK_CONSTANTS } from "../constants/framework-constants";
+import { getReportsArtifactRoot } from "./artifacts-paths";
 
-const logFile = path.resolve(process.cwd(), FRAMEWORK_CONSTANTS.LOG_DIR, "automation.log");
+const logFile = path.join(getReportsArtifactRoot(), "logs", "automation.log");
+fs.mkdirSync(path.dirname(logFile), { recursive: true });
 
 export const logger = createLogger({
   level: "info",

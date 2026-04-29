@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { CustomWorld } from "../support/world";
+import { getReportsArtifactRoot } from "../utils/artifacts-paths";
 import { textContainsToday } from "../utils/date-utils";
 
 function requiredEnv(name: "NAUKRI_USER" | "NAUKRI_PASS" | "RESUME_PATH"): string {
@@ -74,7 +75,7 @@ Then("the resume upload date should be updated to today", async function (this: 
   );
 
   assert.ok(this.session?.page, "Browser session was not available for screenshot evidence");
-  const evidenceDir = path.resolve(process.cwd(), "reports/screenshots");
+  const evidenceDir = path.join(getReportsArtifactRoot(), "screenshots");
   fs.mkdirSync(evidenceDir, { recursive: true });
   const evidencePath = path.resolve(
     evidenceDir,

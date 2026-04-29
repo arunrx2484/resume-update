@@ -2,7 +2,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const reporter = require("multiple-cucumber-html-reporter");
 
-const reportDir = path.resolve(process.cwd(), "reports/cucumber-html-report");
+const reportDir = process.env.CUCUMBER_REPORT_DIR
+  ? path.resolve(process.env.CUCUMBER_REPORT_DIR)
+  : path.resolve(process.cwd(), "reports/cucumber-html-report");
 const jsonFile = path.join(reportDir, "cucumber.json");
 
 if (!fs.existsSync(jsonFile) || fs.statSync(jsonFile).size === 0) {
