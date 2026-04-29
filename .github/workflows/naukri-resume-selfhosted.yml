@@ -20,7 +20,7 @@ jobs:
     env:
       ENV: qa
       BROWSER: chromium
-      HEADLESS: true
+      HEADLESS: false
       NAUKRI_FORCE_DIRECT_LOGIN: "false"
       NAUKRI_USER: ${{ secrets.NAUKRI_USER }}
       NAUKRI_PASS: ${{ secrets.NAUKRI_PASS }}
