@@ -346,13 +346,37 @@ export class NaukriProfilePage {
       return true;
     }
 
+    // Some logged-in variants do not render the header drawer immediately.
+    // Treat known authenticated URLs / logout markers as successful login.
+    const url = this.safePageUrl().toLowerCase();
+    if (
+      url.includes("/mnjuser/") ||
+      url.includes("/naukriuser/") ||
+      url.includes("/my-profile") ||
+      url.includes("/dashboard") ||
+      url.includes("/jobseeker")
+    ) {
+      return true;
+    }
+
+    const logoutVisible = await this.page
+      .locator("a:has-text('Logout'), button:has-text('Logout'), [data-ga-track*='logout' i]")
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (logoutVisible) {
+      return true;
+    }
+
     return this.page
       .waitForFunction(() => {
         const body = document.body.innerText.toLowerCase();
         return (
           body.includes("my naukri") ||
           body.includes("view & update profile") ||
-          body.includes("view profile")
+          body.includes("view profile") ||
+          body.includes("logout") ||
+          body.includes("complete profile")
         );
       }, undefined, { timeout: 30000 })
       .then(() => true)
