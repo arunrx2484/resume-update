@@ -1,14 +1,26 @@
 #!/usr/bin/env bash
+# Log before strict mode: cron can fail `cd` or env setup and exit with no other trace.
+PROJECT_DIR="/Users/arunkumarbalkutty/Documents/salesforce-cpq-bdd/resume update"
+HEARTBEAT_LOG="$PROJECT_DIR/reports/logs/cron-heartbeat.log"
+mkdir -p "$PROJECT_DIR/reports/logs" || true
+{
+  echo "[$(date)] cron invoked user=$(whoami) uid=$(id -u) shell=$0"
+  echo "[$(date)] pre-cd PWD=$PWD"
+} >> "$HEARTBEAT_LOG" 2>&1
+
 set -euo pipefail
 
-PROJECT_DIR="/Users/arunkumarbalkutty/Documents/salesforce-cpq-bdd/resume update"
 SECRETS_FILE="$PROJECT_DIR/config/env/naukri-secrets.env"
 LOG_DIR="$PROJECT_DIR/reports/logs"
 NODE20_BIN="$PROJECT_DIR/node_modules/.bin/node"
 RUN_LOG="$LOG_DIR/scheduler.log"
 
 mkdir -p "$LOG_DIR"
-cd "$PROJECT_DIR"
+cd "$PROJECT_DIR" || {
+  echo "[$(date)] ERROR: cd to PROJECT_DIR failed: $PROJECT_DIR" >> "$HEARTBEAT_LOG"
+  exit 1
+}
+echo "[$(date)] post-cd OK PWD=$(pwd)" >> "$HEARTBEAT_LOG"
 
 # Cron has a minimal environment; set stable defaults explicitly.
 export HOME="/Users/arunkumarbalkutty"
