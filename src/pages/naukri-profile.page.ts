@@ -384,12 +384,29 @@ export class NaukriProfilePage {
   }
 
   async navigateToProfileFromMenu(): Promise<void> {
-    await this.profileWidget().click();
-    await this.viewAndUpdateProfileItem().waitFor({ state: "visible", timeout: 30000 });
-    await Promise.all([
-      this.page.waitForURL(/\/mnjuser\/profile|\/profile/i, { timeout: 30000 }).catch(() => {}),
-      this.viewAndUpdateProfileItem().click()
-    ]);
+    const clickedMenu = await this.profileWidget()
+      .click({ timeout: 5000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (clickedMenu) {
+      const itemVisible = await this.viewAndUpdateProfileItem()
+        .waitFor({ state: "visible", timeout: 10000 })
+        .then(() => true)
+        .catch(() => false);
+      if (itemVisible) {
+        await Promise.all([
+          this.page.waitForURL(/\/mnjuser\/profile|\/profile/i, { timeout: 30000 }).catch(() => {}),
+          this.viewAndUpdateProfileItem().click()
+        ]);
+      } else {
+        await this.page.goto("https://www.naukri.com/mnjuser/profile", { waitUntil: "domcontentloaded", timeout: 60000 });
+      }
+    } else {
+      // Some sessions log in successfully but do not show the header drawer immediately.
+      await this.page.goto("https://www.naukri.com/mnjuser/profile", { waitUntil: "domcontentloaded", timeout: 60000 });
+    }
+
     await this.page.waitForLoadState("domcontentloaded");
     await this.resumeHeadline().waitFor({ state: "visible", timeout: 30000 });
   }
