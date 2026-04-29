@@ -11,8 +11,7 @@
     "test:env": "cucumber-js",
     "report:generate": "node scripts/generate-report.js",
     "report:open": "open reports/cucumber-html-report/index.html",
-    "posttest": "npm run report:generate",
-    "workflow:naukri": "bash scripts/gh-dispatch-naukri-workflow.sh"
+    "posttest": "npm run report:generate"
   },
   "dependencies": {
     "@cucumber/cucumber": "^10.9.0",
