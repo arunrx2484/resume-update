@@ -9,7 +9,7 @@ import { ApiClient } from "../utils/api-client";
 import { NaukriProfilePage } from "../pages/naukri-profile.page";
 import { validateNaukriRunConfig } from "../utils/pre-run-validator";
 
-setDefaultTimeout(120 * 1000);
+setDefaultTimeout(process.env.CI === "true" ? 180 * 1000 : 120 * 1000);
 
 BeforeAll(function () {
   validateNaukriRunConfig();

@@ -88,7 +88,7 @@ export class NaukriProfilePage {
   }
 
   async openHome(): Promise<void> {
-    const timeout = 120_000;
+    const timeout = this.isCiPreferDirectLogin() ? 60_000 : 120_000;
     await this.page.goto("https://www.naukri.com", { waitUntil: "domcontentloaded", timeout });
     // networkidle often never settles on CI (analytics); only wait for it locally.
     if (!this.isCiPreferDirectLogin()) {
@@ -106,16 +106,16 @@ export class NaukriProfilePage {
     if (this.isCiPreferDirectLogin()) {
       for (const url of this.directLoginUrlCandidates()) {
         try {
-          await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: 120_000 });
+          await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
           await this.page.waitForTimeout(2000);
           await this.dismissBlockingUi();
           await this.maybeAcceptConsent();
           await this.waitForAntiBotOrChallengeToSettle();
-          if (await this.findLoginContextByFields(55_000)) {
+          if (await this.findLoginContextByFields(20_000)) {
             return;
           }
           await this.clickExtraLoginTriggers();
-          if (await this.findLoginContextByFields(45_000)) {
+          if (await this.findLoginContextByFields(20_000)) {
             return;
           }
         } catch {
@@ -142,7 +142,7 @@ export class NaukriProfilePage {
     if (!openedFromHeader) {
       await this.page.goto("https://www.naukri.com/nlogin/login", {
         waitUntil: "domcontentloaded",
-        timeout: 120_000,
+        timeout: 60_000,
       });
       await this.dismissBlockingUi();
       await this.maybeAcceptConsent();
@@ -167,7 +167,7 @@ export class NaukriProfilePage {
 
   /** Best-effort wait when Naukri / edge shows a short challenge interstitial. */
   private async waitForAntiBotOrChallengeToSettle(): Promise<void> {
-    const deadline = Date.now() + 45_000;
+    const deadline = Date.now() + 20_000;
     while (Date.now() < deadline) {
       const text = ((await this.page.evaluate(() => document.body?.innerText ?? "")) || "").toLowerCase();
       const stuck =
@@ -264,7 +264,7 @@ export class NaukriProfilePage {
     await this.waitForAntiBotOrChallengeToSettle();
     await this.clickExtraLoginTriggers();
 
-    usernameReady = await this.findLoginContextByFields(45_000);
+    usernameReady = await this.findLoginContextByFields(20_000);
     if (usernameReady) {
       return;
     }
@@ -272,14 +272,14 @@ export class NaukriProfilePage {
     if (this.isCiPreferDirectLogin()) {
       for (const url of this.directLoginUrlCandidates()) {
         try {
-          await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: 120_000 });
+          await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
           await this.dismissBlockingUi();
           await this.maybeAcceptConsent();
           await this.waitForAntiBotOrChallengeToSettle();
-          usernameReady = await this.findLoginContextByFields(40_000);
+          usernameReady = await this.findLoginContextByFields(20_000);
           if (usernameReady) return;
           await this.clickExtraLoginTriggers();
-          usernameReady = await this.findLoginContextByFields(35_000);
+          usernameReady = await this.findLoginContextByFields(20_000);
           if (usernameReady) return;
         } catch {
           //
