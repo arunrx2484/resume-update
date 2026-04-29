@@ -26,6 +26,8 @@ echo "[$(date)] post-cd OK PWD=$(pwd)" >> "$HEARTBEAT_LOG"
 export HOME="/Users/arunkumarbalkutty"
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export NPM_CONFIG_CACHE="$PROJECT_DIR/.npm-cache"
+# IDE/agent sandboxes point here without a full browser install — use OS default (~Library/Caches/ms-playwright).
+unset PLAYWRIGHT_BROWSERS_PATH
 mkdir -p "$NPM_CONFIG_CACHE"
 
 if [ -f "$SECRETS_FILE" ]; then
