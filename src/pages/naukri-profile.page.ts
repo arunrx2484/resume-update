@@ -473,6 +473,35 @@ export class NaukriProfilePage {
 
   async uploadResume(resumePath: string): Promise<void> {
     const absolutePath = path.resolve(resumePath);
+    const uploadTrigger = this.page
+      .locator(
+        [
+          "button:has-text('Update resume')",
+          "button:has-text('Upload resume')",
+          "button:has-text('Update CV')",
+          "button:has-text('Upload CV')",
+          "a:has-text('Update resume')",
+          "a:has-text('Upload resume')",
+          "text=/update resume|upload resume|update cv|upload cv|attach resume/i",
+        ].join(", ")
+      )
+      .first();
+
+    // Try native file chooser path first (many Naukri variants wire upload via chooser events).
+    const chooser = await this.page
+      .waitForEvent("filechooser", { timeout: 5000 })
+      .catch(() => null);
+    if (!chooser) {
+      await uploadTrigger.click({ timeout: 5000 }).catch(() => {});
+    }
+    const chooserAfterClick =
+      chooser ??
+      (await this.page.waitForEvent("filechooser", { timeout: 4000 }).catch(() => null));
+    if (chooserAfterClick) {
+      await chooserAfterClick.setFiles(absolutePath);
+      return;
+    }
+
     const trySet = async (target: Locator): Promise<boolean> => {
       const ready = await target.waitFor({ state: "attached", timeout: 6000 }).then(() => true).catch(() => false);
       if (!ready) return false;
@@ -505,6 +534,28 @@ export class NaukriProfilePage {
       if (done) {
         return;
       }
+    }
+
+    // Last resort: temporarily expose hidden file inputs and set file directly.
+    const domSet = await this.page
+      .evaluate(
+        ({ filePath }) => {
+          const candidates = Array.from(document.querySelectorAll<HTMLInputElement>("input[type='file']"));
+          if (!candidates.length) return false;
+          for (const input of candidates) {
+            input.style.display = "block";
+            input.style.visibility = "visible";
+            input.style.opacity = "1";
+            input.style.height = "1px";
+            input.style.width = "1px";
+          }
+          return true;
+        },
+        { filePath: absolutePath }
+      )
+      .catch(() => false);
+    if (domSet && (await trySet(this.resumeFileInput()))) {
+      return;
     }
 
     throw new Error("Resume file input was not found on profile page or child iframes.");
