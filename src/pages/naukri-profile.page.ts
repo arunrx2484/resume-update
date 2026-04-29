@@ -6,6 +6,37 @@ export class NaukriProfilePage {
 
   constructor(private readonly page: Page) {}
 
+  /** GitHub Actions + optional local override: open /nlogin directly (more reliable than homepage modal). */
+  private isCiPreferDirectLogin(): boolean {
+    return process.env.CI === "true" || process.env.NAUKRI_FORCE_DIRECT_LOGIN === "true";
+  }
+
+  private directLoginUrlCandidates(): string[] {
+    return [
+      "https://www.naukri.com/nlogin/login",
+      "https://www.naukri.com/nlogin/login?URL=https%3A%2F%2Fwww.naukri.com%2Fnlogin%2Flogin",
+    ];
+  }
+
+  /** Broad login-field selector list (Naukri often A/B tests DOM / mobile email field). */
+  private usernameFieldSelectorList(): string {
+    return [
+      "input#usernameField",
+      "input#usernameFieldTop",
+      "input[name='email']",
+      "input[name='username']",
+      "input[type='email']",
+      "input[autocomplete='username']",
+      "input[placeholder*='Email' i]",
+      "input[placeholder*='Mobile' i]",
+      "input[placeholder*='Username' i]",
+      "input[type='text'][name*='email' i]",
+      "input[id*='username' i]",
+      "input[formcontrolname*='user' i]",
+      "input[data-testid*='user' i]",
+    ].join(", ");
+  }
+
   private loginContext(): Page | Frame {
     return this.loginFrame ?? this.page;
   }
@@ -15,11 +46,7 @@ export class NaukriProfilePage {
   }
 
   private usernameInput(): Locator {
-    return this.loginContext()
-      .locator(
-        "input#usernameField, input[name='email'], input[type='email'], input[placeholder*='Email' i], input[placeholder*='Username' i], input[type='text'][name*='email' i], input[id*='username' i]"
-      )
-      .first();
+    return this.loginContext().locator(this.usernameFieldSelectorList()).first();
   }
 
   private passwordInput(): Locator {
@@ -61,16 +88,47 @@ export class NaukriProfilePage {
   }
 
   async openHome(): Promise<void> {
-    await this.page.goto("https://www.naukri.com", { waitUntil: "domcontentloaded" });
-    await this.page.waitForLoadState("networkidle");
+    const timeout = 120_000;
+    await this.page.goto("https://www.naukri.com", { waitUntil: "domcontentloaded", timeout });
+    // networkidle often never settles on CI (analytics); only wait for it locally.
+    if (!this.isCiPreferDirectLogin()) {
+      await this.page.waitForLoadState("networkidle").catch(() => {});
+    } else {
+      await this.page.waitForTimeout(1500);
+    }
     await this.dismissBlockingUi();
+    await this.maybeAcceptConsent();
   }
 
   async openLoginPanel(): Promise<void> {
+    this.loginFrame = null;
+
+    if (this.isCiPreferDirectLogin()) {
+      for (const url of this.directLoginUrlCandidates()) {
+        try {
+          await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: 120_000 });
+          await this.page.waitForTimeout(2000);
+          await this.dismissBlockingUi();
+          await this.maybeAcceptConsent();
+          await this.waitForAntiBotOrChallengeToSettle();
+          if (await this.findLoginContextByFields(55_000)) {
+            return;
+          }
+          await this.clickExtraLoginTriggers();
+          if (await this.findLoginContextByFields(45_000)) {
+            return;
+          }
+        } catch {
+          // try next URL
+        }
+      }
+    }
+
     let openedFromHeader = false;
     try {
       await this.dismissBlockingUi();
-      await this.loginTrigger().click({ timeout: 5000 });
+      await this.maybeAcceptConsent();
+      await this.loginTrigger().click({ timeout: 8000 });
       await this.page.waitForLoadState("domcontentloaded");
       openedFromHeader = true;
     } catch {
@@ -78,14 +136,49 @@ export class NaukriProfilePage {
     }
 
     if (!openedFromHeader) {
-      // Try iframe login triggers first, then use direct login page as fallback.
       openedFromHeader = await this.tryOpenLoginFromFrames();
     }
 
     if (!openedFromHeader) {
-      await this.page.goto("https://www.naukri.com/nlogin/login", { waitUntil: "domcontentloaded" });
+      await this.page.goto("https://www.naukri.com/nlogin/login", {
+        waitUntil: "domcontentloaded",
+        timeout: 120_000,
+      });
+      await this.dismissBlockingUi();
+      await this.maybeAcceptConsent();
+      await this.waitForAntiBotOrChallengeToSettle();
     }
     await this.ensureLoginFormVisible();
+  }
+
+  private async maybeAcceptConsent(): Promise<void> {
+    const candidates = [
+      "#onetrust-accept-btn-handler",
+      "button[id*='accept' i][class*='onetrust' i]",
+      "button:has-text('Accept')",
+      "button:has-text('I Accept')",
+      "button:has-text('Got it')",
+      "button:has-text('Allow all')",
+    ];
+    for (const sel of candidates) {
+      await this.page.locator(sel).first().click({ timeout: 2000 }).catch(() => {});
+    }
+  }
+
+  /** Best-effort wait when Naukri / edge shows a short challenge interstitial. */
+  private async waitForAntiBotOrChallengeToSettle(): Promise<void> {
+    const deadline = Date.now() + 45_000;
+    while (Date.now() < deadline) {
+      const text = ((await this.page.evaluate(() => document.body?.innerText ?? "")) || "").toLowerCase();
+      const stuck =
+        text.includes("just a moment") ||
+        text.includes("checking your browser") ||
+        text.includes("needs to review") ||
+        text.includes("verifying") ||
+        text.includes("enable javascript");
+      if (!stuck) break;
+      await this.page.waitForTimeout(1800);
+    }
   }
 
   private async dismissBlockingUi(): Promise<void> {
@@ -99,6 +192,12 @@ export class NaukriProfilePage {
       .locator("iframe[title*='ad' i], iframe[id*='google_ads' i], iframe[src*='doubleclick' i]")
       .evaluateAll((frames) => frames.forEach((f) => ((f as HTMLElement).style.display = "none")))
       .catch(() => {});
+  }
+
+  private async clickExtraLoginTriggers(): Promise<void> {
+    await this.page.getByRole("button", { name: /login/i }).first().click({ timeout: 4000 }).catch(() => {});
+    await this.page.getByRole("link", { name: /login/i }).first().click({ timeout: 4000 }).catch(() => {});
+    await this.page.locator("[data-ga-track*='login'], .loginButton").first().click({ timeout: 4000 }).catch(() => {});
   }
 
   private async tryOpenLoginFromFrames(): Promise<boolean> {
@@ -121,36 +220,81 @@ export class NaukriProfilePage {
 
   private async findLoginContextByFields(timeoutMs = 5000): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
-    const selector =
-      "input#usernameField, input[name='email'], input[type='email'], input[placeholder*='Email' i], input[placeholder*='Username' i], input[type='text'][name*='email' i], input[id*='username' i]";
+    const selector = this.usernameFieldSelectorList();
 
     while (Date.now() < deadline) {
-      for (const frame of this.page.frames()) {
-        const visible = await frame.locator(selector).first().isVisible().catch(() => false);
-        if (visible) {
-          this.loginFrame = frame;
-          return true;
+      const frames = this.page.frames().filter(Boolean);
+      for (const frame of frames) {
+        const group = frame.locator(selector);
+        const count = await group.count().catch(() => 0);
+        for (let i = 0; i < Math.min(count, 12); i++) {
+          const field = group.nth(i);
+          await field.scrollIntoViewIfNeeded().catch(() => {});
+          const visible =
+            (await field.isVisible().catch(() => false)) ||
+            (await field
+              .evaluate((el: Element) => {
+                const h = el as HTMLElement;
+                const s = window.getComputedStyle(h);
+                return !!h.offsetParent && s.visibility !== "hidden" && s.display !== "none" && Number(s.opacity) > 0;
+              })
+              .catch(() => false));
+
+          const box = await field.boundingBox().catch(() => null);
+          const sized = box !== null && box.width > 2 && box.height > 2;
+          if (visible || sized) {
+            this.loginFrame = frame;
+            return true;
+          }
         }
       }
-      await this.page.waitForTimeout(400);
+      await this.page.waitForTimeout(450);
     }
     return false;
   }
 
   private async ensureLoginFormVisible(): Promise<void> {
-    const usernameReady = await this.findLoginContextByFields();
+    const firstPassMs = this.isCiPreferDirectLogin() ? 8_000 : 5_000;
+    let usernameReady = await this.findLoginContextByFields(firstPassMs);
     if (usernameReady) {
       return;
     }
 
-    // Some Naukri variants require an additional login CTA click even on /nlogin/login.
-    await this.page.getByRole("button", { name: /login/i }).first().click({ timeout: 3000 }).catch(() => {});
-    await this.page.getByRole("link", { name: /login/i }).first().click({ timeout: 3000 }).catch(() => {});
-    await this.page.locator("[data-ga-track*='login'], .loginButton").first().click({ timeout: 3000 }).catch(() => {});
+    await this.maybeAcceptConsent();
+    await this.waitForAntiBotOrChallengeToSettle();
+    await this.clickExtraLoginTriggers();
 
-    const resolved = await this.findLoginContextByFields(30000);
-    if (!resolved) {
-      throw new Error("Login form fields were not visible in page or any iframe.");
+    usernameReady = await this.findLoginContextByFields(45_000);
+    if (usernameReady) {
+      return;
+    }
+
+    if (this.isCiPreferDirectLogin()) {
+      for (const url of this.directLoginUrlCandidates()) {
+        try {
+          await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: 120_000 });
+          await this.dismissBlockingUi();
+          await this.maybeAcceptConsent();
+          await this.waitForAntiBotOrChallengeToSettle();
+          usernameReady = await this.findLoginContextByFields(40_000);
+          if (usernameReady) return;
+          await this.clickExtraLoginTriggers();
+          usernameReady = await this.findLoginContextByFields(35_000);
+          if (usernameReady) return;
+        } catch {
+          //
+        }
+      }
+    }
+
+    throw new Error(`Login form fields were not visible in page or any iframe (url=${this.safePageUrl()}).`);
+  }
+
+  private safePageUrl(): string {
+    try {
+      return this.page.url();
+    } catch {
+      return "unknown";
     }
   }
 
@@ -160,11 +304,13 @@ export class NaukriProfilePage {
     await this.passwordInput().waitFor({ state: "visible", timeout: 30000 });
     await this.passwordInput().fill(password);
     await this.loginSubmitButton().click();
-    await this.page.waitForLoadState("networkidle");
+    await this.page.waitForLoadState("networkidle").catch(async () => {
+      await this.page.waitForLoadState("load").catch(() => {});
+    });
   }
 
   async isProfileWidgetVisible(): Promise<boolean> {
-    await this.page.waitForLoadState("networkidle");
+    await this.page.waitForLoadState("networkidle").catch(() => {});
     const quickVisible = await this.profileWidget().isVisible().catch(() => false);
     if (quickVisible) {
       return true;

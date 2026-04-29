@@ -20,6 +20,8 @@ jobs:
       ENV: qa
       BROWSER: chromium
       HEADLESS: true
+      # Faster, more reliable on GitHub runners than homepage → modal flow
+      NAUKRI_FORCE_DIRECT_LOGIN: "true"
       NAUKRI_USER: ${{ secrets.NAUKRI_USER }}
       NAUKRI_PASS: ${{ secrets.NAUKRI_PASS }}
 
