@@ -88,7 +88,20 @@ export class NaukriProfilePage {
   }
 
   private updateResumeButton(): Locator {
-    return this.page.getByRole("button", { name: /update resume/i }).first();
+    return this.page
+      .locator(
+        [
+          "button:has-text('Update resume')",
+          "button:has-text('Upload resume')",
+          "button:has-text('Update CV')",
+          "a:has-text('Update resume')",
+          "a:has-text('Upload resume')",
+          "[data-test*='resume' i]:has-text('Update')",
+          "[class*='resume' i]:has-text('Update')",
+          "[class*='upload' i]:has-text('Resume')",
+        ].join(", ")
+      )
+      .first();
   }
 
   private resumeFileInput(): Locator {
@@ -436,12 +449,21 @@ export class NaukriProfilePage {
   }
 
   async clickUpdateResume(): Promise<void> {
-    await this.updateResumeButton().click();
+    const clicked = await this.updateResumeButton()
+      .click({ timeout: 12000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!clicked) {
+      // Some layouts render a visible file input directly; caller can still upload.
+      await this.resumeFileInput().waitFor({ state: "attached", timeout: 5000 }).catch(() => {});
+    }
   }
 
   async uploadResume(resumePath: string): Promise<void> {
     const absolutePath = path.resolve(resumePath);
-    await this.resumeFileInput().setInputFiles(absolutePath);
+    const input = this.resumeFileInput();
+    await input.waitFor({ state: "attached", timeout: 15000 });
+    await input.setInputFiles(absolutePath);
   }
 
   async waitForResumeDateChange(previousDateText: string): Promise<string> {
