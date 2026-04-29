@@ -100,7 +100,16 @@ export class NaukriProfilePage {
   }
 
   private lastUpdatedLabel(): Locator {
-    return this.page.locator("text=/Last updated|last updated/i").first();
+    return this.page
+      .locator(
+        [
+          "text=/Last updated|last updated|updated on|resume updated/i",
+          "[class*='update' i]:has-text('updated')",
+          "[class*='resume' i]:has-text('updated')",
+          "[data-test*='updated' i]",
+        ].join(", ")
+      )
+      .first();
   }
 
   async openHome(): Promise<void> {
@@ -412,8 +421,18 @@ export class NaukriProfilePage {
   }
 
   async getResumeLastUpdatedText(): Promise<string> {
-    const text = (await this.lastUpdatedLabel().textContent()) ?? "";
-    return text.trim();
+    const locatorText = await this.lastUpdatedLabel()
+      .textContent({ timeout: 10000 })
+      .catch(() => null);
+    const fromLocator = (locatorText ?? "").trim();
+    if (fromLocator) {
+      return fromLocator;
+    }
+
+    // Fallback for layout variants where label is plain text near resume section.
+    const bodyText = await this.page.evaluate(() => document.body?.innerText ?? "");
+    const match = bodyText.match(/(?:profile|resume)?\s*last\s*updated[^\n]*/i) || bodyText.match(/updated on[^\n]*/i);
+    return (match?.[0] ?? "").trim();
   }
 
   async clickUpdateResume(): Promise<void> {
